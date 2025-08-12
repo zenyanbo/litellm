@@ -7,6 +7,7 @@ Handles Authentication and generating request urls for Vertex AI and Google AI S
 import json
 import os
 from typing import TYPE_CHECKING, Any, Dict, Literal, Optional, Tuple
+from urllib.parse import urljoin, urlparse
 
 import litellm
 from litellm._logging import verbose_logger
@@ -301,19 +302,19 @@ class VertexBase:
         """
         if api_base:
             if custom_llm_provider == "gemini":
-                url = "{}:{}".format(api_base, endpoint)
-                if gemini_api_key is None:
-                    raise ValueError(
-                        "Missing gemini_api_key, please set `GEMINI_API_KEY`"
-                    )
-                auth_header = (
-                    gemini_api_key  # cloudflare expects api key as bearer token
-                )
+                # When using a proxy, we need to maintain the path from the original URL.
+                # The user-provided api_base should be treated as the new base.
+                parsed_url = urlparse(url)
+                # Safely join the api_base with the path from the original URL
+                # Remove any leading slash from the path to ensure correct joining
+                path = parsed_url.path.lstrip("/")
+                url = f"{api_base.rstrip('/')}/{path}"
+                if parsed_url.query:
+                    url += f"?{parsed_url.query}"
             else:
                 url = "{}:{}".format(api_base, endpoint)
-
-            if stream is True:
-                url = url + "?alt=sse"
+                if stream is True:
+                    url = url + "?alt=sse"
         return auth_header, url
 
     def _get_token_and_url(
