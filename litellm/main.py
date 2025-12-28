@@ -249,6 +249,8 @@ from litellm.utils import (
     TranscriptionResponse,
 )
 
+from .llms.custom_failure_policy import CustomFailurePolicy
+
 ####### ENVIRONMENT VARIABLES ###################
 openai_chat_completions = OpenAIChatCompletion()
 openai_text_completions = OpenAITextCompletion()
@@ -409,6 +411,7 @@ async def acompletion(
     web_search_options: Optional[OpenAIWebSearchOptions] = None,
     # Session management
     shared_session: Optional["ClientSession"] = None,
+    retry_on_empty_response: bool = True,
     **kwargs,
 ) -> Union[ModelResponse, CustomStreamWrapper]:
     """
@@ -617,6 +620,14 @@ async def acompletion(
             response.set_logging_event_loop(
                 loop=loop
             )  # sets the logging event loop if the user does sync streaming (e.g. on proxy for sagemaker calls)
+            
+        if (
+            retry_on_empty_response
+            and kwargs.get("stream", False) is False
+            and isinstance(response, litellm.ModelResponse)
+        ):
+            CustomFailurePolicy.check_response(response, model=model, llm_provider=custom_llm_provider)
+            
         return response
     except Exception as e:
         custom_llm_provider = custom_llm_provider or "openai"
@@ -1033,6 +1044,7 @@ def completion(  # type: ignore # noqa: PLR0915
     thinking: Optional[AnthropicThinkingParam] = None,
     # Session management
     shared_session: Optional["ClientSession"] = None,
+    retry_on_empty_response: bool = True,
     **kwargs,
 ) -> Union[ModelResponse, CustomStreamWrapper]:
     """
@@ -3936,6 +3948,14 @@ def completion(  # type: ignore # noqa: PLR0915
             raise LiteLLMUnknownProvider(
                 model=model, custom_llm_provider=custom_llm_provider
             )
+            
+        if (
+            retry_on_empty_response
+            and kwargs.get("stream", False) is False
+            and isinstance(response, litellm.ModelResponse)
+        ):
+            CustomFailurePolicy.check_response(response, model=model, llm_provider=custom_llm_provider)
+            
         return response
     except Exception as e:
         ## Map to OpenAI Exception
