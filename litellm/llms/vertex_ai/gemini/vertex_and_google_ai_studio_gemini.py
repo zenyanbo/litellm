@@ -1569,6 +1569,44 @@ class VertexGeminiConfig(VertexAIBaseConfig, BaseConfig):
         return usage
 
     @staticmethod
+    def _patch_google_ai_studio_response(
+        completion_response: GenerateContentResponseBody,
+    ):
+        # Temp Patch for Google AI Studio Bug: candidates[0] contains all parts
+        # This code normalizes the response by reconstructing candidates[0]
+        # with only its unique parts.
+        # Issue: https://github.com/BerriAI/litellm/issues/1231
+        if "candidates" in completion_response and len(completion_response["candidates"]) > 1:
+            try:
+                # 1. Collect all parts from other candidates (candidates[1:])
+                all_other_parts = []
+                for candidate in completion_response["candidates"][1:]:
+                    all_other_parts.extend(candidate.get("content", {}).get("parts", []))
+
+                # 2. Filter parts from the first candidate
+                if len(all_other_parts) > 0:
+                    original_first_candidate_parts = (
+                        completion_response["candidates"][0]
+                        .get("content", {})
+                        .get("parts", [])
+                    )
+
+                    # 3. Reconstruct the first candidate's parts
+                    reconstructed_parts = original_first_candidate_parts[:len(original_first_candidate_parts) - len(all_other_parts)] if original_first_candidate_parts[-len(all_other_parts):] == all_other_parts else original_first_candidate_parts
+
+                    # 4. Update the first candidate's content
+                    if "content" in completion_response["candidates"][0]:
+                        completion_response["candidates"][0]["content"][
+                            "parts"
+                        ] = reconstructed_parts
+            except Exception as e:
+                # Log the error but don't block the request, as this is a temporary patch.
+                verbose_logger.warning(
+                    f"LiteLLM Warning: Failed to apply temporary patch for Google AI Studio bug. Error: {e}"
+                )
+        return completion_response
+
+    @staticmethod
     def _check_finish_reason(
         chat_completion_message: Optional[ChatCompletionResponseMessage],
         finish_reason: Optional[str],
@@ -1926,10 +1964,19 @@ class VertexGeminiConfig(VertexAIBaseConfig, BaseConfig):
             original_response=raw_response.text,
             additional_args={"complete_input_dict": request_data},
         )
+        
+        # [Non-Stream]
+        # Temp Patch for Google AI Studio Bug: candidates[0] contains all parts
+        # This code normalizes the response by reconstructing candidates[0]
+        # with only its unique parts.
+        # Issue: https://github.com/BerriAI/litellm/issues/1231
+        completion_response = self._patch_google_ai_studio_response(
+            completion_response=raw_response.json()
+        )
 
         ## RESPONSE OBJECT
         try:
-            completion_response = GenerateContentResponseBody(**raw_response.json())  # type: ignore
+            completion_response = GenerateContentResponseBody(**completion_response)  # type: ignore
         except Exception as e:
             raise VertexAIError(
                 message="Received={}, Error converting to valid response block={}. File an issue if litellm error - https://github.com/BerriAI/litellm/issues".format(
