@@ -42,6 +42,11 @@ async def google_generate_content(
     if "model" not in data:
         data["model"] = model_name
 
+    # Extract top-level Google GenAI specific params
+    system_instruction = data.pop("systemInstruction", None)
+    tools = data.pop("tools", None)
+    tool_config = data.pop("toolConfig", None)
+
     # Extract generationConfig and pass it as config parameter
     generation_config = data.pop("generationConfig", None)
     if generation_config:
@@ -65,6 +70,9 @@ async def google_generate_content(
         original_function="agenerate_content",
         rules_obj=litellm.utils.Rules(),
         start_time=datetime.now(),
+        system_instruction=system_instruction,
+        tools=tools,
+        tool_config=tool_config,
         **data,
     )
     data["litellm_logging_obj"] = logging_obj
@@ -72,7 +80,12 @@ async def google_generate_content(
     # call router
     if llm_router is None:
         raise HTTPException(status_code=500, detail="Router not initialized")
-    response = await llm_router.agenerate_content(**data)
+    response = await llm_router.agenerate_content(
+        system_instruction=system_instruction,
+        tools=tools,
+        tool_config=tool_config,
+        **data,
+    )
     return response
 
 
@@ -105,6 +118,11 @@ async def google_stream_generate_content(
 
     data["stream"] = True  # enforce streaming for this endpoint
 
+    # Extract top-level Google GenAI specific params
+    system_instruction = data.pop("systemInstruction", None)
+    tools = data.pop("tools", None)
+    tool_config = data.pop("toolConfig", None)
+
     # Extract generationConfig and pass it as config parameter
     generation_config = data.pop("generationConfig", None)
     if generation_config:
@@ -128,6 +146,9 @@ async def google_stream_generate_content(
         original_function="agenerate_content_stream",
         rules_obj=litellm.utils.Rules(),
         start_time=datetime.now(),
+        system_instruction=system_instruction,
+        tools=tools,
+        tool_config=tool_config,
         **data,
     )
     data["litellm_logging_obj"] = logging_obj
@@ -135,7 +156,12 @@ async def google_stream_generate_content(
     # call router
     if llm_router is None:
         raise HTTPException(status_code=500, detail="Router not initialized")
-    response = await llm_router.agenerate_content_stream(**data)
+    response = await llm_router.agenerate_content_stream(
+        system_instruction=system_instruction,
+        tools=tools,
+        tool_config=tool_config,
+        **data,
+    )
 
     # Check if response is an async iterator (streaming response)
     if response is not None and hasattr(response, "__aiter__"):

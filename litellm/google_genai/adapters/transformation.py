@@ -369,6 +369,7 @@ class GoogleGenAIAdapter:
     ) -> List[AllMessageValues]:
         """Transform Google GenAI contents to OpenAI messages format"""
         messages: List[AllMessageValues] = []
+        tool_call_counter = 0
 
         # Handle system instruction
         if system_instruction:
@@ -421,10 +422,11 @@ class GoogleGenAIAdapter:
                             func_response = part["functionResponse"]
                             tool_message = ChatCompletionToolMessage(
                                 role="tool",
-                                tool_call_id=f"call_{func_response.get('name', 'unknown')}",
+                                tool_call_id=f"call_{tool_call_counter}",
                                 content=json.dumps(func_response.get("response", {})),
                             )
                             tool_messages.append(tool_message)
+                            tool_call_counter += 1
                     elif isinstance(part, str):
                         content_parts.append(
                             cast(
@@ -470,7 +472,7 @@ class GoogleGenAIAdapter:
                             # Transform function call to tool call
                             func_call = part["functionCall"]
                             tool_call = ChatCompletionAssistantToolCall(
-                                id=f"call_{func_call.get('name', 'unknown')}",
+                                id=f"call_{tool_call_counter}",
                                 type="function",
                                 function=ChatCompletionToolCallFunctionChunk(
                                     name=func_call.get("name", ""),
@@ -478,6 +480,7 @@ class GoogleGenAIAdapter:
                                 ),
                             )
                             tool_calls.append(tool_call)
+                            tool_call_counter += 1
                     elif isinstance(part, str):
                         combined_text += part
 
