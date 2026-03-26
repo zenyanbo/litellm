@@ -1103,10 +1103,7 @@ def function_setup(  # noqa: PLR0915
                         config=kwargs.get("config"),
                     )
                     transformed_messages = transformed.get("messages", [])
-                    messages = (
-                        get_last_user_message(transformed_messages)
-                        or "default-message-value"
-                    )
+                    messages = transformed_messages or "default-message-value"
                 else:
                     messages = "default-message-value"
             except Exception as e:
